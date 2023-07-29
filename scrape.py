@@ -4,21 +4,24 @@ import os
 from urllib.parse import urlparse
 from collections import defaultdict
 from bs4 import BeautifulSoup
+import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--site", type=str, required=True)
 parser.add_argument("--depth", type=int, default=3)
 
 
-def get_request_and_save(root: str):
-    url = root
-    parsedUrl = url.replace("https://", "").replace("/", "-").replace(".", "_")
+def cleanUrl(url: str):
+    return url.replace("https://", "").replace("/", "-").replace(".", "_")
+
+
+def get_request_and_save(url: str):
+    parsedUrl = cleanUrl(url)
     print(url, parsedUrl)
     request = requests.get(url)
     if not os.path.exists("./scrape"):
         os.mkdir("./scrape")
     with open("./scrape/" + parsedUrl + ".html", "wb") as f:
-        # soup = BeautifulSoup(request.content, features="lxml")
         f.write(request.content)
     return request
 
@@ -28,14 +31,16 @@ def scrape_links(
     origin: str,
     path: str,
     depth=3,
-    visited_sites: dict = defaultdict(lambda: False),
+    sitemap: dict = defaultdict(lambda: ""),
 ):
+    siteUrl = scheme + "://" + origin + path
+    cleanedUrl = cleanUrl(siteUrl)
     if depth <= 0:
         return
-    if visited_sites[path]:
+    if sitemap[cleanedUrl] != "":
         return
-    visited_sites[path] = True
-    request = get_request_and_save(scheme + "://" + origin + path)
+    sitemap[cleanedUrl] = siteUrl
+    request = get_request_and_save(siteUrl)
     soup = BeautifulSoup(request.content, "html.parser")
     links = soup.find_all("a")
     for link in links:
@@ -49,11 +54,14 @@ def scrape_links(
             href.netloc or origin,
             href.path,
             depth=depth - 1,
-            visited_sites=visited_sites,
+            sitemap=sitemap,
         )
+    return sitemap
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
     url = urlparse(args.site)
-    scrape_links(url.scheme, url.netloc, url.path, depth=args.depth)
+    sitemap = scrape_links(url.scheme, url.netloc, url.path, depth=args.depth)
+    with open("./scrape/sitemap.json", "w") as f:
+        f.write(json.dumps(sitemap))
