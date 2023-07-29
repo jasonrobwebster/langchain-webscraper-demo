@@ -11,6 +11,7 @@ beautifulsoup4 = "*"
 lxml = "*"
 unstructured = "*"
 tiktoken = "*"
+gradio = "*"
 
 [dev-packages]
 black = "*"
