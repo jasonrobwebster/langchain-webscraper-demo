@@ -1,4 +1,5 @@
 import re
+import json
 
 from dotenv import load_dotenv
 
@@ -53,17 +54,18 @@ retrieval_qa = ConversationalRetrievalChain(
     retriever=db.as_retriever(),
     memory=memory,
     combine_docs_chain=final_qa_chain,
-    verbose=True,
 )
 
 
 def predict(message, history):
     response = retrieval_qa(message)
-    responseAnswer = response["answer"]
-    answer = re.search('"answer": "([^"]*)"', responseAnswer).group(1)
-    sources = (
-        re.search('"sources": \[([^\]]*)\]', responseAnswer).group(1).replace('"', "")
-    )
+    responseAnswer = json.loads(response["answer"])
+    answer = responseAnswer["answer"]
+    sources = responseAnswer["sources"]
+
+    if type(sources) == list:
+        sources = "\n".join(sources)
+
     return answer + "\n\nSee more:\n" + sources
 
 
