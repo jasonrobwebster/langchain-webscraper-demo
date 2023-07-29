@@ -1,21 +1,16 @@
-import argparse
+import re
 
 from dotenv import load_dotenv
 
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 from langchain.vectorstores import Chroma
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.chains import (
-    RetrievalQA,
-)
 from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
-from langchain.agents import (
-    Tool,
-    ZeroShotAgent,
-    AgentExecutor,
-)
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import LLMChain
+from langchain.chains import create_qa_with_sources_chain, LLMChain
+from langchain.prompts import PromptTemplate
+from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 
 import gradio
 
@@ -25,49 +20,53 @@ db = Chroma(
     persist_directory="./chroma",
     embedding_function=OpenAIEmbeddings(model="text-embedding-ada-002"),
 )
-print(db.similarity_search("What is lang chain?")[0])
-llm = OpenAI(temperature=0)
-webscrape_qa = RetrievalQA.from_chain_type(
-    llm=llm, chain_type="stuff", retriever=db.as_retriever()
+llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo")
+
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.\
+Make sure to avoid using any unclear pronouns.
+
+Chat History:
+{chat_history}
+Follow Up Input: {question}
+Standalone question:"""
+CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+condense_question_chain = LLMChain(
+    llm=llm,
+    prompt=CONDENSE_QUESTION_PROMPT,
 )
 
-tools = [
-    Tool(
-        name="LangChain API QA System",
-        func=webscrape_qa.run,
-        description="useful for when you need to answer questions about the LangChain API documentation. Input should be a fully formed question. You should always attempt to query this first.",
-    )
-]
+qa_chain = create_qa_with_sources_chain(llm)
 
-memory = ConversationBufferMemory(memory_key="chat_history")
-
-prefix = """You are an agent assisting a human with queries about the LangChain API. The LangChain API is a python based framework for developing applications powered by large language models. You have access to the following tools:"""
-suffix = """Begin!
-
-Chat history: {chat_history}
-Question: {input}
-{agent_scratchpad}"""
-prompt = ZeroShotAgent.create_prompt(
-    tools,
-    prefix=prefix,
-    suffix=suffix,
-    input_variables=["input", "chat_history", "agent_scratchpad"],
+doc_prompt = PromptTemplate(
+    template="Content: {page_content}\nSource: {source}",
+    input_variables=["page_content", "source"],
 )
 
-llm_chain = LLMChain(
-    llm=ChatOpenAI(model="gpt-3.5-turbo", temperature=0), prompt=prompt
+final_qa_chain = StuffDocumentsChain(
+    llm_chain=qa_chain,
+    document_variable_name="context",
+    document_prompt=doc_prompt,
 )
 
-agent = ZeroShotAgent(llm_chain=llm_chain, tools=tools, verbose=True)
-agent_chain = AgentExecutor.from_agent_and_tools(
-    agent=agent, tools=tools, verbose=True, memory=memory
+retrieval_qa = ConversationalRetrievalChain(
+    question_generator=condense_question_chain,
+    retriever=db.as_retriever(),
+    memory=memory,
+    combine_docs_chain=final_qa_chain,
+    verbose=True,
 )
 
 
 def predict(message, history):
-    response = agent_chain(message)
-    print(response)
-    return response["output"]
+    response = retrieval_qa(message)
+    responseAnswer = response["answer"]
+    answer = re.search('"answer": "([^"]*)"', responseAnswer).group(1)
+    sources = (
+        re.search('"sources": \[([^\]]*)\]', responseAnswer).group(1).replace('"', "")
+    )
+    print(answer)
+    return answer + "\n\nSee more:\n" + sources
 
 
 gradio.ChatInterface(predict).launch()
