@@ -6,7 +6,6 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.vectorstores import Chroma
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import create_qa_with_sources_chain, LLMChain
 from langchain.prompts import PromptTemplate
@@ -65,7 +64,6 @@ def predict(message, history):
     sources = (
         re.search('"sources": \[([^\]]*)\]', responseAnswer).group(1).replace('"', "")
     )
-    print(answer)
     return answer + "\n\nSee more:\n" + sources
 
 
