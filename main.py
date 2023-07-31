@@ -66,7 +66,9 @@ def predict(message, history):
     if type(sources) == list:
         sources = "\n".join(sources)
 
-    return answer + "\n\nSee more:\n" + sources
+    if sources:
+        return answer + "\n\nSee more:\n" + sources
+    return answer
 
 
 gradio.ChatInterface(predict).launch()
