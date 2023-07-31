@@ -15,15 +15,14 @@ def cleanUrl(url: str):
     return url.replace("https://", "").replace("/", "-").replace(".", "_")
 
 
-def get_request_and_save(url: str):
-    parsedUrl = cleanUrl(url)
-    print(url, parsedUrl)
-    request = requests.get(url)
+def get_response_and_save(url: str):
+    response = requests.get(url)
     if not os.path.exists("./scrape"):
         os.mkdir("./scrape")
+    parsedUrl = cleanUrl(url)
     with open("./scrape/" + parsedUrl + ".html", "wb") as f:
-        f.write(request.content)
-    return request
+        f.write(response.content)
+    return response
 
 
 def scrape_links(
@@ -35,14 +34,17 @@ def scrape_links(
 ):
     siteUrl = scheme + "://" + origin + path
     cleanedUrl = cleanUrl(siteUrl)
-    if depth <= 0:
+
+    if depth < 0:
         return
     if sitemap[cleanedUrl] != "":
         return
+
     sitemap[cleanedUrl] = siteUrl
-    request = get_request_and_save(siteUrl)
-    soup = BeautifulSoup(request.content, "html.parser")
+    response = get_response_and_save(siteUrl)
+    soup = BeautifulSoup(response.content, "html.parser")
     links = soup.find_all("a")
+
     for link in links:
         href = urlparse(link.get("href"))
         if (href.netloc != origin and href.netloc != "") or (
