@@ -1,3 +1,5 @@
 scrape/
 chroma/
 .env
+
+__pycache__/
