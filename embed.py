@@ -6,9 +6,7 @@ from langchain.document_loaders import (
     DirectoryLoader,
 )
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.text_splitter import (
-    RecursiveCharacterTextSplitter,
-)
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
 
 from dotenv import load_dotenv

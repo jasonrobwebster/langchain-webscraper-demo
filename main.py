@@ -1,4 +1,3 @@
-import re
 import json
 
 from dotenv import load_dotenv
@@ -20,20 +19,22 @@ db = Chroma(
     persist_directory="./chroma",
     embedding_function=OpenAIEmbeddings(model="text-embedding-ada-002"),
 )
+
 llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo")
 
 memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.\
+
+condense_question_prompt = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.\
 Make sure to avoid using any unclear pronouns.
 
 Chat History:
 {chat_history}
 Follow Up Input: {question}
 Standalone question:"""
-CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+condense_question_prompt = PromptTemplate.from_template(condense_question_prompt)
 condense_question_chain = LLMChain(
     llm=llm,
-    prompt=CONDENSE_QUESTION_PROMPT,
+    prompt=condense_question_prompt,
 )
 
 qa_chain = create_qa_with_sources_chain(llm)
@@ -58,10 +59,12 @@ retrieval_qa = ConversationalRetrievalChain(
 
 
 def predict(message, history):
-    response = retrieval_qa(message)
-    responseAnswer = json.loads(response["answer"])
-    answer = responseAnswer["answer"]
-    sources = responseAnswer["sources"]
+    response = retrieval_qa.run({"question": message})
+    print(response)
+
+    responseDict = json.loads(response)
+    answer = responseDict["answer"]
+    sources = responseDict["sources"]
 
     if type(sources) == list:
         sources = "\n".join(sources)
