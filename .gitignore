@@ -1,5 +1,7 @@
 scrape/
 chroma/
+.venv/
 .env
+
 
 __pycache__/
